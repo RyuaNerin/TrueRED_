@@ -1,27 +1,41 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using TrueRED.Display;
 using TrueRED.Framework;
 using Tweetinvi;
 using Tweetinvi.Core.Events.EventArguments;
 using Tweetinvi.Core.Interfaces;
+using Tweetinvi.Core.Parameters;
 
 namespace TrueRED.Modules
 {
-	class ControllerModule : Modules.Module, IStreamListener
+	class ControllerModule : Module, IStreamListener
 	{
-		IAuthenticatedUser user;
-		IUser owner;
-		Dictionary<string, Modules.Module> modules;
-
-		public ControllerModule( IAuthenticatedUser user, IUser owner, Dictionary<string, Modules.Module> modules )
+		public ControllerModule( ) : base( string.Empty )
 		{
-			this.IsRunning = true;
-			this.user = user;
-			this.owner = owner;
-			this.modules = modules;
+			
+		}
+		public ControllerModule( string name ) : base( name )
+		{
+
+		}
+
+		public long OwnerID { get; set; }
+
+		public override string ModuleName
+		{
+			get
+			{
+				return "Controller";
+			}
+		}
+
+		public override string ModuleDescription
+		{
+			get
+			{
+				return "Activaste / Deactivate modules with mention";
+			}
 		}
 
 		void IStreamListener.AccessRevoked( object sender, AccessRevokedEventArgs args )
@@ -83,22 +97,24 @@ namespace TrueRED.Modules
 		{
 			var tweet = args.Tweet;
 
-			if ( tweet.CreatedBy.Id == user.Id ) return;
-			if ( tweet.CreatedBy.Id != owner.Id ) return;
+			if ( tweet.CreatedBy.Id == Globals.Instance.User.Id ) return;
+			if ( tweet.CreatedBy.Id != OwnerID ) return;
 			if ( tweet.IsRetweet == true ) return;
-			if ( tweet.InReplyToUserId != user.Id ) return;
+			if ( tweet.InReplyToUserId != Globals.Instance.User.Id ) return;
+
+			var modules = ModuleManager.Modules;
 
 			if ( tweet.Text.Contains( "Deactivate" ) )
 			{
-				Log.Debug( "Controller", string.Format( "Owner tweet detected [{0}({1}) : {2}]", tweet.CreatedBy.Name, tweet.CreatedBy.ScreenName, tweet.Text ) );
+				Log.Debug( this.Name, string.Format( "Owner tweet detected [{0}({1}) : {2}]", tweet.CreatedBy.Name, tweet.CreatedBy.ScreenName, tweet.Text ) );
 
 				if ( tweet.Text.Contains( "All" ) )
 				{
 					StopNyang( tweet );
 				}
-				foreach ( var item in modules.Keys )
+				foreach ( var item in modules )
 				{
-					if ( tweet.Text.Contains( item ) )
+					if ( tweet.Text.Contains( item.Name ) )
 					{
 						StopNyang( tweet, item );
 					}
@@ -106,15 +122,15 @@ namespace TrueRED.Modules
 			}
 			else if ( tweet.Text.Contains( "Activate" ) )
 			{
-				Log.Debug( "Controller", string.Format( "Owner tweet detected [{0}({1}) : {2}]", tweet.CreatedBy.Name, tweet.CreatedBy.ScreenName, tweet.Text ) );
+				Log.Debug( this.Name, string.Format( "Owner tweet detected [{0}({1}) : {2}]", tweet.CreatedBy.Name, tweet.CreatedBy.ScreenName, tweet.Text ) );
 
 				if ( tweet.Text.Contains( "All" ) )
 				{
 					GoNyang( tweet );
 				}
-				foreach ( var item in modules.Keys )
+				foreach ( var item in modules )
 				{
-					if ( tweet.Text.Contains( item ) )
+					if ( tweet.Text.Contains( item.Name ) )
 					{
 						GoNyang( tweet, item );
 					}
@@ -122,74 +138,78 @@ namespace TrueRED.Modules
 			}
 			else if ( tweet.Text.Contains( "GetModuleState" ) )
 			{
+				Log.Debug( this.Name, string.Format( "Owner tweet detected [{0}({1}) : {2}]", tweet.CreatedBy.Name, tweet.CreatedBy.ScreenName, tweet.Text ) );
+
 				GetModuleState( tweet );
 			}
 		}
 
-		// To-do : 모듈이 많으면 트윗 되지 않을 것임. 나눠서 트윗하는 함수를 만들어야함
+		// TODO: 모듈이 많으면 트윗 되지 않음. 나눠서 트윗하는 함수를 만들어야함
 		private void GetModuleState( ITweet tweet )
 		{
-			if ( modules == null ) Log.Error( "Controller", "Modules undefined" );
 			string result = string.Empty;
+			var modules = ModuleManager.Modules;
 			for ( int i = 0; i < modules.Count; i++ )
 			{
-				result += string.Format( "{0} : {1}\n", modules.Keys.ToArray( )[i], modules.Values.ToArray( )[i].IsRunning.ToString( ) );
+				result += string.Format( "{0} : {1}\n", modules[i].Name, modules[i].IsRunning.ToString( ) );
 			}
-			Tweet.PublishTweetInReplyTo( string.Format( "@{0} {1}", owner.ScreenName, result ), tweet.Id );
+
+			var tweetResult = Globals.Instance.User.PublishTweet( string.Format( "@{0} {1}", tweet.CreatedBy.ScreenName, result ), new PublishTweetOptionalParameters()
+			{
+				InReplyToTweetId = tweet.Id
+			});
 		}
 
 		private void GoNyang( ITweet tweet )
 		{
-			if ( modules == null ) Log.Error( "Controller", "Modules undefined" );
-			foreach ( Modules.Module module in modules.Values )
+			var modules = ModuleManager.Modules;
+			foreach ( Module module in modules )
 			{
 				module.IsRunning = true;
 			}
-			Tweet.PublishTweetInReplyTo( string.Format( "@{0} {1}개의 모듈이 활성화되었어요", owner.ScreenName, modules.Count ), tweet.Id );
-			Log.Debug( "Controller", "All Module Activated" );
+
+			var tweetResult = Globals.Instance.User.PublishTweet( string.Format( "@{0} {1}개의 모듈을 활성화했어", tweet.CreatedBy.ScreenName, modules.Count ), new PublishTweetOptionalParameters()
+			{
+				InReplyToTweetId = tweet.Id
+			});
+			Log.Debug( this.Name, "Controller에 의해 모든 모듈이 활성화되었습니다." );
 		}
 
 		private void StopNyang( ITweet tweet )
 		{
-			if ( modules == null ) Log.Error( "Controller", "Modules undefined" );
-			foreach ( Modules.Module module in modules.Values )
+			var modules = ModuleManager.Modules;
+			foreach ( Module module in modules )
 			{
 				module.IsRunning = false;
 			}
-			Tweet.PublishTweetInReplyTo( string.Format( "@{0} {1}개의 모듈이 비활성화되었어요", owner.ScreenName, modules.Count ), tweet.Id );
-			Log.Debug( "Controller", "All Module Deactivated" );
+
+			var tweetResult = Globals.Instance.User.PublishTweet( string.Format( "@{0} {1}개의 모듈을 비활성화했어", tweet.CreatedBy.ScreenName, modules.Count ), new PublishTweetOptionalParameters()
+			{
+				InReplyToTweetId = tweet.Id
+			});
+			Log.Debug( this.Name, "Controller에 의해 모든 모듈이 비활성화되었습니다." );
 		}
 
-		private void GoNyang( ITweet tweet, string module )
+		private void GoNyang( ITweet tweet, Module module )
 		{
-			if ( modules == null ) Log.Error( "Controller", "Modules undefined" );
-			if ( modules.ContainsKey( module ) )
+			module.IsRunning = true;
+
+			var tweetResult = Globals.Instance.User.PublishTweet( string.Format( "@{0} 모듈[{1}]을 활성화했어", tweet.CreatedBy.ScreenName, module.Name ), new PublishTweetOptionalParameters()
 			{
-				modules[module].IsRunning = true;
-				Tweet.PublishTweetInReplyTo( string.Format( "@{0} {1} 모듈이 활성화되었어요", owner.ScreenName, module ), tweet.Id );
-				Log.Debug( "Controller", module + " Module Activated" );
-			}
-			else
-			{
-				Tweet.PublishTweetInReplyTo( string.Format( "@{0} {1} 모듈을 찾을 수 없었어요", owner.ScreenName, module ), tweet.Id );
-				Log.Debug( "Controller", module + " Not Found" );
-			}
+				InReplyToTweetId = tweet.Id
+			});
+			Log.Debug( this.Name, module.Name + " 모듈이 활성화되었습니다." );
 		}
 
-		private void StopNyang( ITweet tweet, string module )
+		private void StopNyang( ITweet tweet, Module module )
 		{
-			if ( modules == null ) Log.Error( "Controller", "Modules undefined" );
-			if ( modules.ContainsKey( module ) )
+			module.IsRunning = false;
+
+			var tweetResult = Globals.Instance.User.PublishTweet( string.Format( "@{0} 모듈[{1}]을 비활성화했어", tweet.CreatedBy.ScreenName, module.Name ), new PublishTweetOptionalParameters()
 			{
-				modules[module].IsRunning = false;
-				Tweet.PublishTweetInReplyTo( string.Format( "@{0} {1} 모듈이 비활성화되었어요", owner.ScreenName, module ), tweet.Id );
-				Log.Debug( "Controller", module + " Module Deactivated" );
-			}
-			else
-			{
-				Tweet.PublishTweetInReplyTo( string.Format( "@{0} {1} 모듈을 찾을 수 없었어요", owner.ScreenName, module ), tweet.Id );
-				Log.Debug( "Controller", module + " Not Found" );
-			}
+				InReplyToTweetId = tweet.Id
+			});
+			Log.Debug( this.Name, module.Name + " 모듈이 비활성화되었습니다." );
 		}
 
 		void IStreamListener.TweetFavouritedByAnyone( object sender, TweetFavouritedEventArgs args )
@@ -210,6 +230,47 @@ namespace TrueRED.Modules
 		void IStreamListener.UnFollowedUser( object sender, UserFollowedEventArgs args )
 		{
 
+		}
+
+		public override void OpenSettings( INIParser parser )
+		{
+			var ownerID = parser.GetValue( "Module","OwnerID" );
+			if ( string.IsNullOrEmpty( ownerID ) )
+			{
+				IsRunning = false;
+				this.OwnerID = 0;
+			}
+			else
+			{
+				this.OwnerID = long.Parse( ownerID );
+			}
+		}
+
+		public override void SaveSettings( INIParser parser )
+		{
+			WriteBaseSetting( parser );
+			parser.SetValue( "Module", "OwnerID", OwnerID );
+		}
+
+		protected override void Release( )
+		{
+
+		}
+
+		public override Module CreateModule( object[] @params )
+		{
+			return new ControllerModule( @params[0].ToString( ) );
+		}
+
+		public override List<ModuleFaceCategory> GetModuleFace( )
+		{
+			List<Display.ModuleFaceCategory> face = new List<Display.ModuleFaceCategory>();
+
+			var category1 = new Display.ModuleFaceCategory("Module" );
+			category1.Add( Display.ModuleFaceCategory.ModuleFaceTypes.String, "모듈 이름" );
+			face.Add( category1 );
+
+			return face;
 		}
 	}
 }

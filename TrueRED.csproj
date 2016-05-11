@@ -34,13 +34,20 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject>TrueRED.Program</StartupObject>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="Autofac, Version=3.5.0.0, Culture=neutral, PublicKeyToken=17863af14b0044da, processorArchitecture=MSIL">
       <HintPath>packages\Autofac.3.5.2\lib\net40\Autofac.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Hammock.ClientProfile, Version=1.0.0.0, Culture=neutral, PublicKeyToken=c148cfba29ed1a4d, processorArchitecture=MSIL">
-      <HintPath>packages\TweetSharp.2.3.1\lib\4.0\Hammock.ClientProfile.dll</HintPath>
+    <Reference Include="INIFileParser, Version=2.2.4.0, Culture=neutral, PublicKeyToken=79af7b307b65cf3c, processorArchitecture=MSIL">
+      <HintPath>packages\ini-parser.2.2.4\lib\net20\INIFileParser.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="MaterialSkin, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>packages\MaterialSkin.0.2.1\lib\MaterialSkin.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Microsoft.Threading.Tasks, Version=1.0.12.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
@@ -56,7 +63,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=8.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>packages\Newtonsoft.Json.8.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <HintPath>packages\Newtonsoft.Json.8.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
@@ -79,8 +86,8 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
-    <Reference Include="Tweetinvi, Version=0.9.11.2, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\TweetinviAPI.0.9.11.2\lib\net45\Tweetinvi.dll</HintPath>
+    <Reference Include="Tweetinvi, Version=0.9.12.2, Culture=neutral, PublicKeyToken=7247f14397bf67b9, processorArchitecture=MSIL">
+      <HintPath>packages\TweetinviAPI.0.9.12.2\lib\net45\Tweetinvi.dll</HintPath>
       <Private>True</Private>
     </Reference>
   </ItemGroup>
@@ -91,15 +98,35 @@
     <Compile Include="Display\AppConsole.Designer.cs">
       <DependentUpon>AppConsole.cs</DependentUpon>
     </Compile>
+    <Compile Include="Display\Authenticate.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Display\Authenticate.Designer.cs">
+      <DependentUpon>Authenticate.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Display\MakeModule.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Display\MakeModule.Designer.cs">
+      <DependentUpon>MakeModule.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Display\ModuleFace.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Framework\Console.cs" />
+    <Compile Include="Framework\Globals.cs" />
     <Compile Include="Framework\HttpCore\HttpCommunicator.cs" />
     <Compile Include="Framework\HttpCore\HttpRepeater.cs" />
     <Compile Include="Framework\HttpRepeaters\Weather.cs" />
     <Compile Include="Framework\INIParser.cs" />
     <Compile Include="Framework\Log.cs" />
+    <Compile Include="Framework\ModuleManager.cs" />
+    <Compile Include="Framework\Singleton.cs" />
     <Compile Include="Framework\StringSetsManager.cs" />
     <Compile Include="Modules\ReflectorModule.cs" />
-    <Compile Include="Modules\ModuleBase.cs" />
+    <Compile Include="Modules\_ModuleBase.cs" />
     <Compile Include="Modules\ReactorModule.cs" />
+    <Compile Include="Modules\RegularTweet.cs" />
     <Compile Include="Modules\SchedulerModule.cs" />
     <Compile Include="Modules\ControllerModule.cs" />
     <Compile Include="Modules\WeatherModule.cs" />
@@ -111,7 +138,17 @@
     <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <EmbeddedResource Include="Display\AppConsole.resx">
+      <DependentUpon>AppConsole.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Display\Authenticate.resx">
+      <DependentUpon>Authenticate.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Display\MakeModule.resx">
+      <DependentUpon>MakeModule.cs</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets" Condition="Exists('packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
@@ -120,7 +157,7 @@
     </PropertyGroup>
     <Error Condition="!Exists('packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets'))" />
   </Target>
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
   </Target>

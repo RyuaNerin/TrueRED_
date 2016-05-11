@@ -2,22 +2,23 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using Hammock.Streaming;
 using TrueRED.Framework;
 using TrueRED.Modules;
 using Tweetinvi;
-using Tweetinvi.Core.Interfaces;
+using Tweetinvi.Core.Interfaces.Streaminvi;
 
 namespace TrueRED
 {
 	class Program
 	{
+		private const string LogHeader = "Program";
+
 		static void Main( string[] args )
 		{
 #if DEBUG
 			Body( );
+			//WindowDebugMode( );
 #else
 			try
 			{
@@ -40,113 +41,89 @@ namespace TrueRED
 
 		static void Body( )
 		{
-
 			#region Initialize Program
 
 			Log.Init( );
+			InitDirectories( );
 			StringSetsManager.LoadStringSets( "Stringsets" );
 
-			var setting = new INIParser( Path.Combine( Directory.GetCurrentDirectory( ), "setting.ini" ) );
+			var setting = new INIParser( "Globals.ini" );
 			var AuthData = "Authenticate";
 			string consumerKey = setting.GetValue( AuthData, "ConsumerKey" );
 			string consumerSecret = setting.GetValue( AuthData, "CconsumerSecret" );
 			string accessToken = setting.GetValue( AuthData, "AccessToken" );
 			string accessSecret = setting.GetValue( AuthData, "AccessSecret" );
-			Auth.SetUserCredentials( consumerKey, consumerSecret, accessToken, accessSecret );
-			var user = User.GetAuthenticatedUser( );
-			Log.Debug( "UserCredentials :", string.Format( "{0}({1}) [{2}]", user.Name, user.ScreenName, user.Id ) );
-
-			long ownerID = 0;
-			try
+			if (
+				string.IsNullOrEmpty( consumerKey ) ||
+				string.IsNullOrEmpty( consumerSecret ) ||
+				string.IsNullOrEmpty( accessToken ) ||
+				string.IsNullOrEmpty( accessSecret ) )
 			{
-				ownerID = long.Parse( setting.GetValue( "AppInfo", "OwnerID" ) );
+				Log.Error( LogHeader, "유저 인증 정보를 찾을 수 없습니다. 토큰 발급 창으로 이동합니다." );
+				var frm = new Display.Authenticate();
+				frm.ShowDialog( );
+				if(frm.Result == true)
+				{
+					
+				}
+				else
+				{
+					Log.Error( LogHeader, "유저 인증에 실패했습니다. 프로그램을 종료합니다." );
+					Exit( );
+					return;
+				}
 			}
-			catch ( FormatException e )
+			else
 			{
-				ownerID = 0;
+				//TODO: User가 null일 경우의 대처
+				Globals.Instance.Initialize( consumerKey, consumerSecret, accessToken, accessSecret );
 			}
-			var owner = User.GetUserFromId( ownerID );
 			#endregion
 
-			#region Initialize Modules
-
-			var modules = new Dictionary<string, Module>();
-			var iniModules = new List<IUseSetting>();
-			var streamModules = new List<IStreamListener>();
-			var timetasks = new List<ITimeTask>();
-
-			var YoruHello = new ReactorModule(user,  "YoruHelloReactor", new TimeSet(20), new TimeSet(29));
-			modules.Add( "YoruHello", YoruHello );
-			streamModules.Add( YoruHello );
-
-			var AsaHello = new ReactorModule(user,  "AsaHelloReactor", new TimeSet(5), new TimeSet(12));
-			modules.Add( "AsaHello", AsaHello );
-			streamModules.Add( AsaHello );
-
-			var TimeTweet = new SchedulerModule(user, "TimeTweet" );
-			modules.Add( "TimeTweet", TimeTweet );
-			timetasks.Add( TimeTweet );
-
-			var AutoFollow = new ReflectorModule(user);
-			modules.Add( "AutoFollow", AutoFollow );
-			streamModules.Add( AutoFollow );
-
-			var Switcher = new ControllerModule(user, owner, modules);
-			modules.Add( "Switcher", Switcher );
-			streamModules.Add( Switcher );
-
-			var Weather = new WeatherModule(user);
-			modules.Add( "Weather", Weather );
-			streamModules.Add( Weather );
-
-			#endregion
-
-			foreach ( var item in timetasks )
-			{
-				Task.Factory.StartNew( ( ) => item.Run( ) );
-			}
-
-			foreach ( var item in iniModules )
-			{
-				item.OpenSettings( );
-			}
-
-			CreateStream( streamModules );
+			ModuleManager.Initialize( );
+			ModuleManager.LoadAllModules( "Modules" );
 
 			new Display.AppConsole( ).ShowDialog( );
 
-			foreach ( var item in iniModules )
+			foreach ( var module in ModuleManager.Modules )
 			{
-				item.SaveSettings( );
+				var parser = new INIParser(Path.Combine( "Modules", module.Name + ".ini" ));
+				module.SaveSettings( parser );
+				parser.Save( );
 			}
-		}
+			Exit( );
+        }
 
-		static void CreateStream( List<IStreamListener> modules )
+		static void InitDirectories( )
 		{
-			if ( modules.Count == 0 ) return;
-
-			var userStream = Tweetinvi.Stream.CreateUserStream();
-			foreach ( var module in modules )
+			var settings = Path.Combine( Directory.GetCurrentDirectory( ), "Modules" ) ;
+			if ( !Directory.Exists( settings ) )
 			{
-				userStream.TweetCreatedByAnyone += module.TweetCreateByAnyone;
-				userStream.MessageSent += module.MessageSent;
-				userStream.MessageReceived += module.MessageReceived;
-				userStream.TweetFavouritedByAnyone += module.TweetFavouritedByAnyone;
-				userStream.TweetUnFavouritedByAnyone += module.TweetUnFavouritedByAnyone;
-				userStream.ListCreated += module.ListCreated;
-				userStream.ListUpdated += module.ListUpdated;
-				userStream.ListDestroyed += module.ListDestroyed;
-				userStream.BlockedUser += module.BlockedUser;
-				userStream.UnBlockedUser += module.UnBlockedUser;
-				userStream.FollowedUser += module.FollowedUser;
-				userStream.FollowedByUser += module.FollowedByUser;
-				userStream.UnFollowedUser += module.UnFollowedUser;
-				userStream.AuthenticatedUserProfileUpdated += module.AuthenticatedUserProfileUpdated;
-				userStream.FriendIdsReceived += module.FriendIdsReceived;
-				userStream.AccessRevoked += module.AccessRevoked;
+				Directory.CreateDirectory( settings );
 			}
-			userStream.StartStream( );
 
+			var stringsets = Path.Combine( Directory.GetCurrentDirectory( ), "StringSets" ) ;
+			if ( !Directory.Exists( stringsets ) )
+			{
+				Directory.CreateDirectory( stringsets );
+			}
 		}
+
+		static void Exit( )
+		{
+			Console.WriteLine( "" );
+			Log.Print(LogHeader, "종료하시려면 아무 키나 누르세요." );
+			Console.Read( );
+		}
+
+		#region Test Modules
+
+		static void WindowDebugMode( )
+		{
+			new Display.MakeModule( ).ShowDialog( );
+		}
+
+		#endregion
+
 	}
 }

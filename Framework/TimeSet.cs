@@ -1,28 +1,30 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
 namespace TrueRED.Framework
 {
 	public class TimeSet
 	{
+		public int Hour { get; private set; }
+		public int Minute { get; private set; }
+
 		public TimeSet( int Hour, int Minute = 0 )
 		{
 			this.Hour = Hour;
 			this.Minute = Minute;
+			if ( this.Minute > 60 )
+			{
+				this.Hour += Minute / 60;
+				this.Minute %= 60;
+			}
 		}
 
-		public int Hour { get; private set; }
-		public int Minute { get; private set; }
-
-		public static TimeSet GetCurrentTimeset( DateTime date )
+		public TimeSet( DateTime now )
 		{
-			return new TimeSet( date.Hour, date.Minute );
+			this.Hour = now.Hour;
+			this.Minute = now.Minute;
 		}
 
-		// 검증 함수 검증 필요
 		public static bool Verification( TimeSet current, TimeSet start, TimeSet end )
 		{
 			if ( end.Hour < 24 )
@@ -98,6 +100,14 @@ namespace TrueRED.Framework
 		public override string ToString( )
 		{
 			return string.Format( "{0}시 {1}분", this.Hour, this.Minute );
+		}
+
+		public static TimeSet FromString( string timeStr )
+		{
+			var hour = int.Parse(new Regex("[0-9]+시").Match(timeStr).Value.Replace("시", ""));
+			var minute = int.Parse(new Regex("[0-9]+분").Match(timeStr).Value.Replace("분", ""));
+
+			return new TimeSet( hour, minute );
 		}
 
 	}

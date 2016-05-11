@@ -1,21 +1,36 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using TrueRED.Display;
 using TrueRED.Framework;
 using Tweetinvi.Core.Events.EventArguments;
-using Tweetinvi.Core.Interfaces;
 
 namespace TrueRED.Modules
 {
-	class ReflectorModule : Modules.Module, IStreamListener
+	public class ReflectorModule : Module, IStreamListener
 	{
-		IAuthenticatedUser user;
-		public ReflectorModule( IAuthenticatedUser user )
+		public override string ModuleName
 		{
-			this.IsRunning = true;
-			this.user = user;
+			get
+			{
+				return "Reflector";
+			}
+		}
+
+		public override string ModuleDescription
+		{
+			get
+			{
+				return "Auto mutal-follow";
+			}
+		}
+
+		public ReflectorModule( ) : base( string.Empty )
+		{
+
+		}
+		public ReflectorModule( string name ) : base( name )
+		{
+
 		}
 
 		void IStreamListener.AccessRevoked( object sender, AccessRevokedEventArgs args )
@@ -36,8 +51,8 @@ namespace TrueRED.Modules
 		void IStreamListener.FollowedByUser( object sender, UserFollowedEventArgs args )
 		{
 			if ( !IsRunning ) return;
-			user.FollowUser( args.User );
-			Log.Http( "Reflector worked", string.Format( "AutoFollowed {0}({1})", args.User.Name, args.User.ScreenName )) ;
+			Globals.Instance.User.FollowUser( args.User );
+			Log.Http( this.Name, string.Format( "Auto followed {0}({1})", args.User.Name, args.User.ScreenName ) );
 		}
 
 		void IStreamListener.FollowedUser( object sender, UserFollowedEventArgs args )
@@ -96,6 +111,38 @@ namespace TrueRED.Modules
 		void IStreamListener.UnFollowedUser( object sender, UserFollowedEventArgs args )
 		{
 
+		}
+
+		public override void OpenSettings( INIParser parser )
+		{
+
+		}
+
+		public override void SaveSettings( INIParser parser )
+		{
+			parser.SetValue( "Module", "IsRunning", IsRunning );
+			parser.SetValue( "Module", "Type", this.GetType( ).FullName );
+			parser.SetValue( "Module", "Name", Name );
+		}
+
+		protected override void Release( )
+		{
+		}
+
+		public override Module CreateModule( object[] @params )
+		{
+			return new ReflectorModule( ( string ) @params[0] );
+		}
+
+		public override List<ModuleFaceCategory> GetModuleFace( )
+		{
+			List<ModuleFaceCategory> face = new List<Display.ModuleFaceCategory>();
+
+			var category1 = new ModuleFaceCategory("Module" );
+			category1.Add( ModuleFaceCategory.ModuleFaceTypes.String, "모듈 이름" );
+			face.Add( category1 );
+
+			return face;
 		}
 	}
 }

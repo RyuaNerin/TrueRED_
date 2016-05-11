@@ -1,27 +1,40 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
+using TrueRED.Display;
 using TrueRED.Framework;
 using Tweetinvi;
-using Tweetinvi.Core.Interfaces;
 
 namespace TrueRED.Modules
 {
-	class SchedulerModule : Modules.Module, ITimeTask
+	public class SchedulerModule : Module, ITimeTask
 	{
-		IAuthenticatedUser user;
-		private string stringsetPath;
-		List<Tuple<TimeSet, string>> pair = new List<Tuple<TimeSet, string>>();
-
-		public SchedulerModule( IAuthenticatedUser user, string stringsetPath )
+		public override string ModuleName
 		{
-			this.IsRunning = true;
-			this.user = user;
-			this.stringsetPath = stringsetPath;
-			LoadStringsets( stringsetPath );
+			get
+			{
+				return "Scheduler";
+			}
+		}
+
+		public override string ModuleDescription
+		{
+			get
+			{
+				return "Tweet on setted time";
+			}
+		}
+
+		List<Tuple<TimeSet, string>> pair = new List<Tuple<TimeSet, string>>();
+		private string stringset;
+
+		public SchedulerModule( ) : base( string.Empty )
+		{
+
+		}
+		public SchedulerModule( string name ) : base( name )
+		{
+
 		}
 
 		public void LoadStringsets( string stringSet )
@@ -33,7 +46,7 @@ namespace TrueRED.Modules
 				var tags = scheduler[i].Split('∥');
 				if ( tags.Length != 3 )
 				{
-					Log.Error( "Scheduler.Status", string.Format( "Not correct scheduler stringset {0}", scheduler[i] ) );
+					Log.Error( this.Name, string.Format( "Not correct scheduler stringset {0}", scheduler[i] ) );
 					continue;
 				}
 				pair.Add( new Tuple<TimeSet, string>( new TimeSet( int.Parse( tags[0] ), int.Parse( tags[1] ) ), tags[2] ) );
@@ -42,7 +55,7 @@ namespace TrueRED.Modules
 
 		void ITimeTask.Run( )
 		{
-			while ( true )
+			while ( !Disposed )
 			{
 				if ( IsRunning )
 				{
@@ -52,13 +65,54 @@ namespace TrueRED.Modules
 						DateTime.Now.Minute == item.Item1.Minute &&
 						DateTime.Now.Second == 0 )
 						{
-							var tweet= Tweet.PublishTweet( item.Item2 );
-							Log.Print( "Scheduler tweet", string.Format( "[{0} : {1}]", tweet.Text, tweet.CreatedAt.ToString( ) ) );
+							var tweet= Globals.Instance.User.PublishTweet( item.Item2 );
+							Log.Print( this.Name, string.Format( "Tweeted [{0} : {1}]", tweet.Text, tweet.CreatedAt.ToString( ) ) );
 						}
 					}
 				}
 				Thread.Sleep( 1000 );
 			}
 		}
+
+		public override void OpenSettings( INIParser parser )
+		{
+			stringset = parser.GetValue( "Module", "ReactorStringset" );
+
+			LoadStringsets( stringset );
+		}
+
+		public override void SaveSettings( INIParser parser )
+		{
+			parser.SetValue( "Module", "IsRunning", IsRunning );
+			parser.SetValue( "Module", "Type", this.GetType( ).FullName );
+			parser.SetValue( "Module", "Name", Name );
+			parser.SetValue( "Module", "ReactorStringset", stringset );
+		}
+
+		protected override void Release( )
+		{
+
+		}
+
+		public override Module CreateModule( object[] @params )
+		{
+			var module =new SchedulerModule((string)@params[0]);
+			module.stringset = ( string ) @params[1];
+			module.LoadStringsets( module.stringset );
+			return module;
+		}
+
+		public override List<ModuleFaceCategory> GetModuleFace( )
+		{
+			List<ModuleFaceCategory> face = new List<Display.ModuleFaceCategory>();
+
+			var category1 = new ModuleFaceCategory("Module" );
+			category1.Add( ModuleFaceCategory.ModuleFaceTypes.String, "모듈 이름" );
+			category1.Add( ModuleFaceCategory.ModuleFaceTypes.String, "문자셋" );
+			face.Add( category1 );
+
+			return face;
+		}
+
 	}
 }

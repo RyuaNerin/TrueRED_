@@ -3,18 +3,19 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace TrueRED.Framework
 {
-	class StringSetsManager
+	public class StringSetsManager
 	{
 		static Dictionary<string, List<string>> _list = new Dictionary<string, List<string>>();
 		static Random _selector = new Random();
+		public static string rootpath = rootpath;
 
 		public static void LoadStringSets( string rootpath )
 		{
 			if ( !Directory.Exists( rootpath ) ) return;
+			StringSetsManager.rootpath = rootpath;
 			var subdirs = Directory.GetDirectories(rootpath );
 			var files = Directory.GetFiles(rootpath);
 			foreach ( var item in subdirs )
@@ -25,6 +26,11 @@ namespace TrueRED.Framework
 			{
 				if ( item.ToLower( ).EndsWith( ".stringset" ) ) LoadStringSet( item );
 			}
+		}
+
+		public static void LoadStringSets( )
+		{
+			LoadStringSets( StringSetsManager.rootpath );
 		}
 
 		private static void LoadStringSet( string path )
@@ -53,15 +59,20 @@ namespace TrueRED.Framework
 
 		public static string[] GetStrings( string StringSet )
 		{
-			if ( _list.ContainsKey( StringSet ) )
+			try
 			{
 				return _list[StringSet].ToArray( );
 			}
-			else
+			catch
 			{
 				Log.Error( "GetStrings", string.Format( "Coudn't find StringSet [{0}]", StringSet ) );
 				return new string[0];
 			}
+		}
+
+		internal static void ClearStringSets( )
+		{
+			_list.Clear( );
 		}
 	}
 }
